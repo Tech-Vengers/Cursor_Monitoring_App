@@ -17,6 +17,10 @@ build/
 .env.*
 !.env.example
 
+# Local demo data (server inventory)
+data/*.json
+!data/.gitkeep
+
 # Tests / tooling
 .pytest_cache/
 .coverage

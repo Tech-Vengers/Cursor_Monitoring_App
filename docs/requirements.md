@@ -4,7 +4,7 @@
 
 Local demo web app so internal L1/L2/L3 and app teams can view live Linux server metrics without SSH login.
 
-**Scope:** Single host (the machine where the app runs). Flask UI on port **5001**. Python + venv. Not for production.
+**Scope:** Single host (the machine where the app runs). Flask UI on port **5005**. Python + venv. Not for production.
 
 ## 2. Problem
 
@@ -71,7 +71,7 @@ Alerts, historical charts, Windows hosts, multi-user RBAC, HTTPS, cloud deploy, 
 | UI | Server-rendered templates + light CSS (attractive, minimal) |
 | Auth | Session login; hashed password |
 | Metrics | SSH to local host; parse standard Linux commands / tools |
-| Run | Local venv; app binds to port **5001** |
+| Run | Local venv; app binds to port **5005** |
 
 ## 8. UX (minimal)
 
@@ -90,21 +90,22 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Open: `http://127.0.0.1:5001`  
+Open: `http://127.0.0.1:5005`  
+
 Login: `admin` / `admin123`
 
 ## 10. Acceptance criteria (demo)
 
-- [ ] Login works with `admin` and hashed password check
-- [ ] Wrong password rejected
-- [ ] After login, one page shows CPU %, memory used/available, network in/out, listening/open ports
-- [ ] Metrics refresh about every 30 seconds
-- [ ] Can add, edit, and delete a server entry by hostname/IP
-- [ ] Metrics are read-only in the UI
-- [ ] App runs locally on port 5001 via venv + Python
+- [x] Login works with `admin` and hashed password check
+- [x] Wrong password rejected
+- [x] After login, one page shows CPU %, memory used/available, network in/out, listening/open ports
+- [x] Metrics refresh about every 30 seconds
+- [x] Can add, edit, and delete a server entry by hostname/IP
+- [x] Metrics are read-only in the UI
+- [x] App runs locally on port 5005 via venv + Python
 
 ## 11. Assumptions
 
-- Answer `3. 5001` means the **app listens on port 5001**; port *metrics* mean listening/open ports on the monitored host
+- App listens on port **5005** (updated from earlier 5001); port *metrics* mean listening/open ports on the monitored host
 - Question 12 (charts vs bars) defaulted to **tables / % bars** for a minimal demo
 - SSH to localhost is available for agentless collection in this environment
