@@ -1,53 +1,153 @@
 {% extends "base.html" %}
 {% block title %}Dashboard · Linux Monitor{% endblock %}
+{% block head %}
+<meta http-equiv="refresh" content="30">
+{% endblock %}
 {% block content %}
-<section class="panel">
-  <h1>Server dashboard</h1>
-  <p class="muted">Placeholder metrics (live collection comes later). Values are display-only.</p>
+<section class="panel-hero">
+  <h1>Operations dashboard{% if selected %}<span class="live-chip">Live · 30s</span>{% endif %}</h1>
+  <p class="lead">Register Linux hosts with verified SSH credentials, then watch CPU, memory, network, and listening ports in one place.</p>
+</section>
+
+<section class="section-shell">
+  <div class="section-head">
+    <h2 class="section-title">Server inventory</h2>
+    <p class="section-note">SSH login must succeed before a host is saved</p>
+  </div>
+
+  <form method="post" action="{{ url_for('servers_add') }}" class="add-form">
+    {{ add_form.hidden_tag() }}
+    <label class="grow">
+      Hostname / IP
+      {{ add_form.hostname_or_ip(class_="input", placeholder="127.0.0.1") }}
+    </label>
+    <label>
+      SSH username
+      {{ add_form.ssh_username(class_="input", placeholder="linux-user", autocomplete="off") }}
+    </label>
+    <label>
+      SSH password
+      {{ add_form.ssh_password(class_="input", autocomplete="new-password") }}
+    </label>
+    {{ add_form.submit(class_="btn btn-primary") }}
+  </form>
+  <p class="hint-row">Password is encrypted at rest for this local demo. Never reuse production secrets here.</p>
+
+  {% if servers %}
+  <table class="data-table" style="margin-top: 1rem;">
+    <thead>
+      <tr>
+        <th>Host</th>
+        <th>SSH user</th>
+        <th>View</th>
+        <th>Edit</th>
+        <th>Delete</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for server in servers %}
+      <tr class="{% if selected_id == server.id %}row-selected{% endif %}">
+        <td class="host-cell">{{ server.hostname_or_ip }}</td>
+        <td>{{ server.ssh_username }}</td>
+        <td>
+          <a class="btn btn-ghost btn-small" href="{{ url_for('dashboard', server_id=server.id) }}">Open</a>
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('servers_edit', server_id=server.id) }}" class="inline-edit">
+            {{ edit_form.hidden_tag() }}
+            <input class="input input-inline" type="text" name="edit-hostname_or_ip" value="{{ server.hostname_or_ip }}" required maxlength="253" title="Hostname / IP">
+            <input class="input input-inline" type="text" name="edit-ssh_username" value="{{ server.ssh_username }}" required maxlength="64" title="SSH username" autocomplete="off">
+            <input class="input input-inline" type="password" name="edit-ssh_password" value="" maxlength="256" placeholder="Keep password" title="SSH password (blank = keep)" autocomplete="new-password">
+            <button type="submit" class="btn btn-ghost btn-small">Update</button>
+          </form>
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('servers_delete', server_id=server.id) }}" onsubmit="return confirm('Delete this server?');">
+            {{ delete_form.hidden_tag() }}
+            <button type="submit" class="btn btn-danger btn-small">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty-state">No servers yet. Add a host with SSH username and password to start monitoring.</p>
+  {% endif %}
+</section>
+
+<section class="section-shell">
+  <div class="section-head">
+    <h2 class="section-title">Live metrics{% if selected %} · <span class="mono">{{ selected.hostname_or_ip }}</span>{% endif %}</h2>
+    <p class="section-note">Display-only · collected over SSH</p>
+  </div>
+
+  {% set cpu = metrics.cpu_percent if metrics else none %}
+  {% set mem = metrics.memory if metrics else none %}
+  {% set net = metrics.network if metrics else none %}
+  {% set ports = metrics.ports if metrics else [] %}
+
+  {% if metrics and metrics.error %}
+  <div class="flash flash-error" role="alert">Could not collect metrics via SSH: {{ metrics.error }}</div>
+  <p class="hint-row">Confirm SSH user/password and that the host accepts password authentication.</p>
+  {% endif %}
 
   <div class="metrics-grid">
     <article class="metric-card">
       <h2>CPU</h2>
       <div class="bar-track" aria-hidden="true">
-        <div class="bar-fill" style="width: 0%"></div>
+        <div class="bar-fill" style="width: {{ cpu or 0 }}%"></div>
       </div>
-      <p class="metric-value">— %</p>
-      <p class="muted">Usage</p>
+      <p class="metric-value">{% if cpu is not none %}{{ cpu }}%{% else %}—{% endif %}</p>
+      <p class="muted">Processor utilization</p>
     </article>
 
     <article class="metric-card">
       <h2>Memory</h2>
       <div class="bar-track" aria-hidden="true">
-        <div class="bar-fill" style="width: 0%"></div>
+        <div class="bar-fill" style="width: {{ (mem.percent if mem and mem.percent is not none else 0) }}%"></div>
       </div>
-      <p class="metric-value">— / —</p>
-      <p class="muted">Used / available</p>
+      <p class="metric-value">
+        {% if mem and mem.used_display %}{{ mem.used_display }}{% else %}—{% endif %}
+      </p>
+      <p class="muted">
+        {% if mem and mem.available_display %}Available {{ mem.available_display }}{% else %}Used / available{% endif %}
+        {% if mem and mem.percent is not none %} · {{ mem.percent }}%{% endif %}
+      </p>
     </article>
 
     <article class="metric-card">
       <h2>Network</h2>
       <table class="data-table">
         <thead>
-          <tr><th>Direction</th><th>Rate</th></tr>
+          <tr><th>Direction</th><th>Bytes</th></tr>
         </thead>
         <tbody>
-          <tr><td>In</td><td>—</td></tr>
-          <tr><td>Out</td><td>—</td></tr>
+          <tr><td>In (RX)</td><td class="mono">{% if net and net.rx_display %}{{ net.rx_display }}{% else %}—{% endif %}</td></tr>
+          <tr><td>Out (TX)</td><td class="mono">{% if net and net.tx_display %}{{ net.tx_display }}{% else %}—{% endif %}</td></tr>
         </tbody>
       </table>
+      <p class="muted" style="margin-top:0.65rem;">Counters from <code>/proc/net/dev</code></p>
     </article>
 
     <article class="metric-card metric-card-wide">
-      <h2>Ports</h2>
-      <p class="muted">Listening / open ports</p>
-      <table class="data-table">
-        <thead>
-          <tr><th>Port</th><th>State</th></tr>
-        </thead>
-        <tbody>
-          <tr><td colspan="2" class="muted">No data yet</td></tr>
-        </tbody>
-      </table>
+      <h2>Listening ports <span class="status-pill">{{ ports|length if ports else 0 }} open</span></h2>
+      <div class="ports-scroll">
+        <table class="data-table">
+          <thead>
+            <tr><th>Port</th><th>State</th></tr>
+          </thead>
+          <tbody>
+            {% if ports %}
+              {% for row in ports %}
+              <tr><td class="mono">{{ row.port }}</td><td>{{ row.state }}</td></tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="2" class="muted">No listening ports reported yet</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
     </article>
   </div>
 </section>

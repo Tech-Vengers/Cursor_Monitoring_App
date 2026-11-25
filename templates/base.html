@@ -5,17 +5,40 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Linux Monitor{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% block head %}{% endblock %}
 </head>
 <body>
   <header class="site-header">
-    <div class="brand">Linux Monitor</div>
-    <p class="tagline">Local demo — metrics are read-only</p>
+    <div class="header-row">
+      <div class="brand-lockup">
+        <div class="brand-mark" aria-hidden="true">LM</div>
+        <div>
+          <div class="brand">Linux Monitor</div>
+          <p class="tagline">Infrastructure observability · metrics are read-only</p>
+        </div>
+      </div>
+      {% if session.get('logged_in') %}
+      <form method="post" action="{{ url_for('logout') }}" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-ghost">Sign out · {{ username or session.get('username') }}</button>
+      </form>
+      {% endif %}
+    </div>
   </header>
   <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-list">
+          {% for category, message in messages %}
+            <li class="flash flash-{{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
     {% block content %}{% endblock %}
   </main>
   <footer class="site-footer">
-    <span>Demo only · 127.0.0.1:5001</span>
+    <span>Local demo · 127.0.0.1:5005 · SSH-verified inventory · auth required</span>
   </footer>
 </body>
 </html>
