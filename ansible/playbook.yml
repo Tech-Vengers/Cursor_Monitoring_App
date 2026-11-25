@@ -1,0 +1,141 @@
+---
+# Deploy Cursor Monitoring App from GitHub
+# Repo: https://github.com/Tech-Vengers/Cursor_Monitoring_App
+#
+# Usage (after filling inventory credentials):
+#   cd ansible
+#   ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory.ini playbook.yml
+
+- name: Deploy Cursor Monitoring App
+  hosts: monitoring
+  become: "{{ ansible_user != 'root' }}"
+  vars:
+    app_name: cursor_monitoring_app
+    app_dir: /opt/cursor_monitoring_app
+    app_user: "{{ ansible_user }}"
+    app_repo: https://github.com/Tech-Vengers/Cursor_Monitoring_App.git
+    # Use dev until main has the full app merged
+    app_branch: dev
+    app_host: "0.0.0.0"
+    app_port: 5005
+    secret_key: "{{ lookup('password', '/dev/null length=48 chars=ascii_letters,digits') }}"
+
+  tasks:
+    - name: Wait until apt/dpkg locks are free
+      ansible.builtin.shell: |
+        set -e
+        for i in $(seq 1 60); do
+          if ! fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 \
+            && ! fuser /var/lib/dpkg/lock >/dev/null 2>&1 \
+            && ! fuser /var/lib/apt/lists/lock >/dev/null 2>&1; then
+            exit 0
+          fi
+          sleep 10
+        done
+        echo "Timed out waiting for apt/dpkg locks" >&2
+        exit 1
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Install OS packages
+      ansible.builtin.apt:
+        name:
+          - git
+          - python3
+          - python3-venv
+          - python3-pip
+        state: present
+        update_cache: true
+      register: apt_install
+      retries: 10
+      delay: 15
+      until: apt_install is succeeded
+
+    - name: Ensure application directory exists
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0755"
+
+    - name: Clone or update application repository
+      ansible.builtin.git:
+        repo: "{{ app_repo }}"
+        dest: "{{ app_dir }}"
+        version: "{{ app_branch }}"
+        force: true
+      become_user: "{{ app_user }}"
+
+    - name: Create Python virtualenv
+      ansible.builtin.command:
+        cmd: python3 -m venv {{ app_dir }}/.venv
+        creates: "{{ app_dir }}/.venv/bin/python"
+      become_user: "{{ app_user }}"
+
+    - name: Install Python dependencies
+      ansible.builtin.pip:
+        requirements: "{{ app_dir }}/requirements.txt"
+        virtualenv: "{{ app_dir }}/.venv"
+      become_user: "{{ app_user }}"
+
+    - name: Ensure data directory exists
+      ansible.builtin.file:
+        path: "{{ app_dir }}/data"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0755"
+
+    - name: Deploy .env if missing
+      ansible.builtin.template:
+        src: env.j2
+        dest: "{{ app_dir }}/.env"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0600"
+        force: false
+
+    - name: Install systemd unit
+      ansible.builtin.template:
+        src: cursor-monitoring.service.j2
+        dest: /etc/systemd/system/cursor-monitoring.service
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart cursor-monitoring
+
+    - name: Enable and start cursor-monitoring service
+      ansible.builtin.systemd:
+        name: cursor-monitoring
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Allow app port in UFW if ufw is active
+      ansible.builtin.shell: |
+        if command -v ufw >/dev/null && ufw status | grep -qi 'Status: active'; then
+          ufw allow {{ app_port }}/tcp
+        fi
+      args:
+        executable: /bin/bash
+      changed_when: false
+      failed_when: false
+
+    - name: Show access hint
+      ansible.builtin.debug:
+        msg: >-
+          App deployed to {{ app_dir }}.
+          Open http://{{ ansible_host }}:{{ app_port }}
+          Login: admin / admin123
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart cursor-monitoring
+      ansible.builtin.systemd:
+        name: cursor-monitoring
+        state: restarted

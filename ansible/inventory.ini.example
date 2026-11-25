@@ -1,0 +1,12 @@
+# Example inventory — copy to inventory.ini and fill in credentials.
+# Do not commit real passwords.
+
+[monitoring]
+# Example of adding a server with username and password:
+Chandan-server ansible_host=192.168.1.10 ansible_user=CHANGEME ansible_password=CHANGEME ansible_become_password=CHANGEME
+
+[monitoring:vars]
+ansible_connection=ssh
+ansible_port=22
+ansible_python_interpreter=/usr/bin/python3
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'

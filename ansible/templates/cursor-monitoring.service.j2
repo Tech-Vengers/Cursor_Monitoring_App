@@ -1,0 +1,19 @@
+[Unit]
+Description=Cursor Linux Monitoring App (demo)
+After=network.target
+
+[Service]
+Type=simple
+User={{ app_user }}
+WorkingDirectory={{ app_dir }}
+Environment=PATH={{ app_dir }}/.venv/bin:/usr/bin
+Environment=APP_HOST={{ app_host }}
+Environment=APP_PORT={{ app_port }}
+Environment=APP_DEBUG=0
+EnvironmentFile=-{{ app_dir }}/.env
+ExecStart={{ app_dir }}/.venv/bin/python {{ app_dir }}/app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
